@@ -7,6 +7,7 @@ const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '10m';
 const isProduction = process.env.NODE_ENV === 'production';
 
+// Helper: consistent error response
 const errorResponse = (res, status, message, details) => {
   const payload = { success: false, message };
   if (details) payload.details = details;
@@ -19,14 +20,14 @@ export const socialLoginBuyer = async (req, res) => {
     const { email, full_name, provider_id, provider_name } = req.body ?? {};
 
     if (!email || !full_name || !provider_id || !provider_name) {
-      return errorResponse(res, 400, 'Email, full name, provider ID and provider name are required');
+      return errorResponse(res, 400, 'Email, full name, provider ID, and provider name are required');
     }
 
     const role = 'buyer';
 
     // Check if user exists in Supabase auth
-    let { data: existingUser } = await supabase.auth.admin.listUsers();
-    existingUser = existingUser.users.find(u => u.email === email);
+    const { data: allUsers } = await supabase.auth.admin.listUsers();
+    let existingUser = allUsers.users.find(u => u.email === email);
 
     let userId;
 
@@ -42,7 +43,7 @@ export const socialLoginBuyer = async (req, res) => {
       if (authError) return errorResponse(res, authError.status || 400, authError.message, authError);
       userId = authData.user.id;
 
-      // Create profile
+      // Create user profile
       const profilePayload = {
         id: userId,
         full_name,
@@ -58,10 +59,11 @@ export const socialLoginBuyer = async (req, res) => {
       userId = existingUser.id;
     }
 
-    // Generate access token
-    const token = jwt.sign({ id: userId, email, role }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+    // Generate JWT (includes provider info)
+    const tokenPayload = { id: userId, email, role, provider: provider_name };
+    const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 
-    // Generate refresh token
+    // Generate refresh token and store in DB
     const refreshToken = crypto.randomBytes(64).toString('hex');
     await supabase.from('user_profiles').update({ refresh_token: refreshToken }).eq('id', userId);
 
@@ -70,14 +72,14 @@ export const socialLoginBuyer = async (req, res) => {
       httpOnly: true,
       secure: isProduction,
       sameSite: 'lax',
-      maxAge: 30 * 24 * 60 * 60 * 1000,
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     });
 
     return res.status(200).json({
       success: true,
       message: 'Buyer social login successful',
       token,
-      user: { id: userId, email, full_name, role },
+      user: { id: userId, email, full_name, role, provider: provider_name },
     });
 
   } catch (err) {
