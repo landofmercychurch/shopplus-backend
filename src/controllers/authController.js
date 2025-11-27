@@ -3,22 +3,33 @@ import { supabase } from '../config/db.js';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 
+/* ============================================================
+  CONFIGURATION
+============================================================ */
 const JWT_SECRET = process.env.JWT_SECRET;
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '10m'; // short expiry
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '10m';
 const REFRESH_TOKEN_EXPIRES_IN = process.env.REFRESH_TOKEN_EXPIRES_IN || '30d';
 const isProduction = process.env.NODE_ENV === 'production';
 
-// Helper: consistent error response
+/* ============================================================
+  HELPER FUNCTION
+============================================================ */
 const errorResponse = (res, status, message, details) => {
   const payload = { success: false, message };
   if (details) payload.details = details;
   return res.status(status).json(payload);
 };
 
-// ==================== REGISTER USER ====================
-export const registerUser = async (req, res) => {
+/* ============================================================
+  REGISTER USER
+  - Address and store_name are NOT required at signup
+  - Supports forcedRole (buyer or seller) from routes
+============================================================ */
+export const registerUser = async (req, res, forcedRole = null) => {
   try {
-    const { full_name, email, password, role, phone_number, address, store_name } = req.body ?? {};
+    let { full_name, email, password, role, phone_number } = req.body ?? {};
+
+    if (forcedRole) role = forcedRole; // override role if route forces it
 
     if (!full_name || !email || !password || !role || !phone_number) {
       return errorResponse(res, 400, 'Full name, email, password, phone number, and role are required.');
@@ -29,16 +40,18 @@ export const registerUser = async (req, res) => {
       return errorResponse(res, 400, 'Invalid role. Must be "buyer" or "seller".');
     }
 
-    if (normalizedRole === 'seller' && !store_name) {
-      return errorResponse(res, 400, 'Store name is required for sellers.');
-    }
-
-    // Create Supabase user
+    // Create Supabase auth user
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
-      user_metadata: { full_name, role: normalizedRole, phone_number, address: address || '', store_name: normalizedRole === 'seller' ? store_name : null },
+      user_metadata: {
+        full_name,
+        role: normalizedRole,
+        phone_number,
+        address: '',     // empty for now
+        store_name: null // empty for now
+      },
     });
 
     if (authError) {
@@ -47,13 +60,15 @@ export const registerUser = async (req, res) => {
     }
 
     const userId = authData.user.id;
+
+    // Create profile
     const profilePayload = {
       id: userId,
       full_name,
       role: normalizedRole,
       phone_number,
-      address: address || '',
-      store_name: normalizedRole === 'seller' ? store_name : null,
+      address: '',
+      store_name: null,
       avatar_url: null,
       refresh_token: null,
       created_at: new Date().toISOString(),
@@ -73,7 +88,7 @@ export const registerUser = async (req, res) => {
     return res.status(201).json({
       success: true,
       message: 'User registered successfully',
-      user: { id: userId, email, full_name: profile.full_name, role: profile.role, store_name: profile.store_name },
+      user: { id: userId, email, full_name: profile.full_name, role: profile.role },
     });
 
   } catch (err) {
@@ -81,8 +96,11 @@ export const registerUser = async (req, res) => {
   }
 };
 
-// ==================== LOGIN USER ====================
-export const loginUser = async (req, res) => {
+/* ============================================================
+  LOGIN USER
+  - Supports forcedRole (buyer-only or seller-only login)
+============================================================ */
+export const loginUser = async (req, res, forcedRole = null) => {
   try {
     const { email, password } = req.body ?? {};
     if (!email || !password) return errorResponse(res, 400, 'Email and password are required.');
@@ -94,11 +112,15 @@ export const loginUser = async (req, res) => {
     const { data: profile, error: profileError } = await supabase.from('user_profiles').select('*').eq('id', userId).single();
     if (profileError || !profile) return errorResponse(res, 404, 'User profile not found');
 
-    // Generate access token (10-min expiry)
-    const payload = { id: userId, email: data.user.email, role: profile.role };
-    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+    // Enforce forced role
+    if (forcedRole && profile.role !== forcedRole) {
+      return errorResponse(res, 403, `You must log in as ${forcedRole}`);
+    }
 
-    // Generate refresh token and store in DB
+    // Generate JWT access token
+    const token = jwt.sign({ id: userId, email: data.user.email, role: profile.role }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+
+    // Generate refresh token
     const refreshToken = crypto.randomBytes(64).toString('hex');
     await supabase.from('user_profiles').update({ refresh_token: refreshToken }).eq('id', userId);
 
@@ -107,7 +129,7 @@ export const loginUser = async (req, res) => {
       httpOnly: true,
       secure: false,
       sameSite: 'lax',
-      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      maxAge: 30 * 24 * 60 * 60 * 1000,
     });
 
     // Check if seller has a store
@@ -120,7 +142,7 @@ export const loginUser = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: 'Login successful',
-      token, // access token stored in frontend memory
+      token,
       user: { id: userId, email: data.user.email, full_name: profile.full_name, role: profile.role, store_name: profile.store_name, has_store },
     });
 
@@ -129,7 +151,9 @@ export const loginUser = async (req, res) => {
   }
 };
 
-// ==================== REFRESH ACCESS TOKEN ====================
+/* ============================================================
+  REFRESH ACCESS TOKEN
+============================================================ */
 export const refreshAccessToken = async (req, res) => {
   try {
     const refreshToken = req.cookies?.refreshToken;
@@ -138,9 +162,7 @@ export const refreshAccessToken = async (req, res) => {
     const { data: profile, error: profileError } = await supabase.from('user_profiles').select('*').eq('refresh_token', refreshToken).single();
     if (profileError || !profile) return errorResponse(res, 401, 'Invalid refresh token');
 
-    const payload = { id: profile.id, email: profile.email, role: profile.role };
-    const newToken = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
-
+    const newToken = jwt.sign({ id: profile.id, email: profile.email, role: profile.role }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
     return res.status(200).json({ success: true, token: newToken });
 
   } catch (err) {
@@ -148,7 +170,9 @@ export const refreshAccessToken = async (req, res) => {
   }
 };
 
-// ==================== LOGOUT ====================
+/* ============================================================
+  LOGOUT USER
+============================================================ */
 export const logoutUser = async (req, res) => {
   try {
     res.clearCookie('refreshToken', { httpOnly: true, secure: isProduction, sameSite: 'strict' });
@@ -158,7 +182,9 @@ export const logoutUser = async (req, res) => {
   }
 };
 
-// ==================== GET USER PROFILE ====================
+/* ============================================================
+  GET USER PROFILE
+============================================================ */
 export const getUserProfile = async (req, res) => {
   try {
     const userId = req.user?.id;
@@ -174,7 +200,10 @@ export const getUserProfile = async (req, res) => {
   }
 };
 
-// ==================== UPDATE USER PROFILE ====================
+/* ============================================================
+  UPDATE USER PROFILE
+  - Used for dashboard updates: address, store_name, avatar_url
+============================================================ */
 export const updateUserProfile = async (req, res) => {
   try {
     const userId = req.user?.id;
@@ -197,4 +226,3 @@ export const updateUserProfile = async (req, res) => {
     return errorResponse(res, 500, 'Server error', { message: err.message });
   }
 };
-
