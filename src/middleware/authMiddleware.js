@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 const JWT_SECRET = process.env.JWT_SECRET;
 
 // ============================================================
-// Middleware to authenticate JWT
+// Middleware to authenticate JWT (normal + social login)
 // ============================================================
 export const authenticateJWT = (req, res, next) => {
   try {
@@ -15,14 +15,16 @@ export const authenticateJWT = (req, res, next) => {
 
     const token = authHeader.split(' ')[1].trim();
 
-    // Verify token
+    // Verify token (works for social login JWTs too, as long as they are signed with JWT_SECRET)
     const decoded = jwt.verify(token, JWT_SECRET);
 
     // Log the decoded JWT payload
     console.log('Decoded JWT:', decoded);
 
     // Attach user info to request
-    req.user = decoded; // { sub: userId, email, role, ... }
+    req.user = decoded; 
+    // expected: { id, email, role, provider } 
+    // "provider" can be "local", "google", "facebook", "apple"
 
     next();
 
@@ -53,4 +55,3 @@ export const authorizeRoles = (...allowedRoles) => {
     next();
   };
 };
-
