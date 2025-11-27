@@ -7,6 +7,7 @@ const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '10m';
 const isProduction = process.env.NODE_ENV === 'production';
 
+// Helper: consistent error response
 const errorResponse = (res, status, message, details) => {
   const payload = { success: false, message };
   if (details) payload.details = details;
@@ -25,8 +26,8 @@ export const socialLoginSeller = async (req, res) => {
     const role = 'seller';
 
     // Check if user exists
-    let { data: existingUser } = await supabase.auth.admin.listUsers();
-    existingUser = existingUser.users.find(u => u.email === email);
+    const { data: allUsers } = await supabase.auth.admin.listUsers();
+    let existingUser = allUsers.users.find(u => u.email === email);
 
     let userId;
 
@@ -58,8 +59,9 @@ export const socialLoginSeller = async (req, res) => {
       userId = existingUser.id;
     }
 
-    // Generate access token
-    const token = jwt.sign({ id: userId, email, role }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+    // Generate JWT (includes provider info)
+    const tokenPayload = { id: userId, email, role, provider: provider_name };
+    const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 
     // Generate refresh token
     const refreshToken = crypto.randomBytes(64).toString('hex');
@@ -77,7 +79,7 @@ export const socialLoginSeller = async (req, res) => {
       success: true,
       message: 'Seller social login successful',
       token,
-      user: { id: userId, email, full_name, role },
+      user: { id: userId, email, full_name, role, provider: provider_name },
     });
 
   } catch (err) {
