@@ -80,7 +80,8 @@ app.use(cookieParser());
 // 🔗 ROUTE IMPORTS
 // ============================================================
 
-import authRoutes from "./routes/authRoutes.js";
+import buyerRoutes from "./routes/auth/buyerRoutes.js";
+import sellerRoutes from "./routes/auth/sellerRoutes.js";
 import sellerStoreRoutes from "./routes/seller/storeRoutes.js";
 import buyerStoreRoutes from "./routes/buyer/storeRoutes.js";
 import uploadRoutes from "./routes/upload.js";
@@ -102,10 +103,10 @@ import notificationsRoutes from "./routes/notificationsRoutes.js";
 
 
 // ============================================================
-// 🧭 ROUTE MOUNTING
-// ============================================================
+// 🧭 ROUTE 
 
-app.use("/api/auth", authRoutes);
+app.use("/api/buyer", buyerRoutes);
+app.use("/api/seller", sellerRoutes);
 app.use("/api/buyer/stores", buyerStoreRoutes);
 app.use("/api/seller/stores", sellerStoreRoutes);
 app.use("/api/products", productRoutes);
