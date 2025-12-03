@@ -24,7 +24,7 @@ const PORT = process.env.PORT || 5000;
 // 🧩 CORS MIDDLEWARE
 // ============================================================
 
-const allowedOrigin = process.env.CLIENT_URL || "http://localhost:5173";
+const allowedOrigin = process.env.CLIENT_URL || "https://shopplus-frontend-uj8c.onrender.com";
 
 const corsOptions = {
   origin: allowedOrigin,
