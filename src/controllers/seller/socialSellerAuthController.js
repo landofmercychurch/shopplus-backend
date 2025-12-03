@@ -70,8 +70,8 @@ export const socialLoginSeller = async (req, res) => {
     // Set HttpOnly cookie
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: 'lax',
+      secure: true,
+      sameSite: 'none',
       maxAge: 30 * 24 * 60 * 60 * 1000,
     });
 
