@@ -47,26 +47,40 @@ app.use((req, res, next) => {
   next();
 });
 
-// ============================================================
+// // ============================================================
 // 🧩 SECURITY HEADERS
 // ============================================================
+
+// Allow ALL your frontend deployments
+const frontends = [
+  allowedOrigin, // https://shopplus-frontend-uj8c.onrender.com (your env default)
+  "https://shopplus-frontend-uj8c.onrender.com",
+  "https://landofmercychurch.github.io",
+  "https://landofmercychurch.github.io/shopplus-frontend"
+];
 
 app.use(
   helmet.contentSecurityPolicy({
     directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "blob:"],
-      connectSrc: ["'self'", allowedOrigin],
+      defaultSrc: ["'self'", ...frontends],
+      scriptSrc: ["'self'", "'unsafe-inline'", ...frontends],
+      styleSrc: ["'self'", "'unsafe-inline'", ...frontends],
+      imgSrc: ["'self'", "data:", "blob:", ...frontends],
+      connectSrc: ["'self'", ...frontends],
       fontSrc: ["'self'", "data:"],
       objectSrc: ["'none'"],
-      frameSrc: ["'none'"],
+      frameSrc: ["'self'", ...frontends],
       baseUri: ["'self'"],
-      formAction: ["'self'"],
+      formAction: ["'self'", ...frontends],
     },
   })
-); // <-- closes app.use properly
+);
+
+// ============================================================
+// 🧩 CRITICAL: TRUST PROXY (Render requires this for cookies)
+// ============================================================
+
+app.set("trust proxy", 1);
 
 // ============================================================
 // 🧩 BODY PARSERS
