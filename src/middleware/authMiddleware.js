@@ -1,35 +1,31 @@
+// authMiddleware.js
 import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
 // ============================================================
-// Middleware to authenticate JWT (normal + social login)
+// Dynamic JWT authentication middleware for custom cookie names
 // ============================================================
-export const authenticateJWT = (req, res, next) => {
-  try {
-    const authHeader = req.headers.authorization;
+export const authenticateJWTWithCookie = (cookieName = 'accessToken') => (req, res, next) => {
+  console.log(`🔹 [authenticateJWT] Checking cookie: ${cookieName} for request:`, req.method, req.originalUrl);
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  try {
+    const token = req.cookies?.[cookieName];
+    console.log(`🔹 [authenticateJWT] Token from cookie "${cookieName}":`, token ? '[present]' : '[missing]');
+
+    if (!token) {
+      console.warn(`⚠️ [authenticateJWT] No token provided in cookie "${cookieName}"`);
       return res.status(401).json({ success: false, error: 'Unauthorized: No token provided.' });
     }
 
-    const token = authHeader.split(' ')[1].trim();
-
-    // Verify token (works for social login JWTs too, as long as they are signed with JWT_SECRET)
     const decoded = jwt.verify(token, JWT_SECRET);
+    console.log('🔹 [authenticateJWT] Decoded JWT:', decoded);
 
-    // Log the decoded JWT payload
-    console.log('Decoded JWT:', decoded);
-
-    // Attach user info to request
-    req.user = decoded; 
-    // expected: { id, email, role, provider } 
-    // "provider" can be "local", "google", "facebook", "apple"
-
+    req.user = decoded;
     next();
 
   } catch (err) {
-    console.error('❌ Token verification error:', err.message);
+    console.error('❌ [authenticateJWT] Token verification error:', err.message);
 
     if (err.name === 'TokenExpiredError') {
       return res.status(401).json({ success: false, error: 'Token expired. Please login again.' });
@@ -40,18 +36,24 @@ export const authenticateJWT = (req, res, next) => {
 };
 
 // ============================================================
-// Middleware to authorize based on user roles
+// Legacy middleware for buyers (default cookie: accessToken)
 // ============================================================
-export const authorizeRoles = (...allowedRoles) => {
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({ success: false, error: 'Unauthorized: No user found in request.' });
-    }
+export const authenticateJWT = authenticateJWTWithCookie('accessToken');
 
-    if (!allowedRoles.includes(req.user.role)) {
-      return res.status(403).json({ success: false, error: 'Forbidden: Insufficient permissions.' });
-    }
+// ============================================================
+// Role-based authorization middleware
+// ============================================================
+export const authorizeRoles = (...allowedRoles) => (req, res, next) => {
+  console.log('🔹 [authorizeRoles] Checking roles for user:', req.user?.role);
 
-    next();
-  };
+  if (!req.user) {
+    return res.status(401).json({ success: false, error: 'Unauthorized: No user found in request.' });
+  }
+
+  if (!allowedRoles.includes(req.user.role)) {
+    return res.status(403).json({ success: false, error: 'Forbidden: Insufficient permissions.' });
+  }
+
+  next();
 };
+

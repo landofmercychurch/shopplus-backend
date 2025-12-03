@@ -1,3 +1,4 @@
+// src/controllers/buyer/buyerMetadataController.js
 import { supabase } from '../../config/db.js';
 
 // ============================================================
@@ -25,7 +26,7 @@ export const getBuyerAddresses = async (req, res) => {
 
     if (error) return errorResponse(res, 500, 'Failed to fetch addresses', error);
 
-    return res.status(200).json({ success: true, addresses: data });
+    return res.status(200).json({ success: true, addresses: data, total: data.length });
   } catch (err) {
     return errorResponse(res, 500, 'Server error', { message: err.message });
   }
@@ -46,16 +47,20 @@ export const addBuyerAddress = async (req, res) => {
       address1,
       address2,
       city,
+      lga,                // ⭐ NEW: Required LGA
       state,
       country,
       postal_code,
       latitude,
       longitude,
+      google_place_id,
+      formatted_address,
       is_default,
     } = req.body ?? {};
 
-    if (!label || !full_name || !phone_number || !address1 || !city || !state) {
-      return errorResponse(res, 400, 'Missing required fields');
+    // Required fields check
+    if (!label || !full_name || !phone_number || !address1 || !city || !state || !lga) {
+      return errorResponse(res, 400, 'Missing required fields (label, full_name, phone_number, address1, city, lga, state)');
     }
 
     // If this address is default, unset other default addresses
@@ -63,23 +68,30 @@ export const addBuyerAddress = async (req, res) => {
       await supabase.from('buyer_metadata').update({ is_default: false }).eq('user_id', userId);
     }
 
-    const { data, error } = await supabase.from('buyer_metadata').insert([
-      {
-        user_id: userId,
-        label,
-        full_name,
-        phone_number,
-        address1,
-        address2: address2 || null,
-        city,
-        state,
-        country: country || 'Nigeria',
-        postal_code: postal_code || null,
-        latitude: latitude || null,
-        longitude: longitude || null,
-        is_default: !!is_default,
-      },
-    ]).select().single();
+    const { data, error } = await supabase
+      .from('buyer_metadata')
+      .insert([
+        {
+          user_id: userId,
+          label,
+          full_name,
+          phone_number,
+          address1,
+          address2: address2 || null,
+          city,
+          lga,                     // ⭐ NEW
+          state,
+          country: country || 'Nigeria',
+          postal_code: postal_code || null,
+          latitude: latitude || null,
+          longitude: longitude || null,
+          google_place_id: google_place_id || null,
+          formatted_address: formatted_address || null,
+          is_default: !!is_default,
+        },
+      ])
+      .select()
+      .single();
 
     if (error) return errorResponse(res, 500, 'Failed to add address', error);
 
@@ -99,6 +111,11 @@ export const updateBuyerAddress = async (req, res) => {
     if (!userId) return errorResponse(res, 401, 'Unauthorized');
 
     const updates = { ...req.body };
+
+    // Prevent removing essential fields
+    if (updates.hasOwnProperty('lga') && !updates.lga) {
+      return errorResponse(res, 400, 'LGA cannot be empty');
+    }
 
     // If updating default, unset other defaults
     if (updates.is_default) {
@@ -172,3 +189,4 @@ export const setDefaultAddress = async (req, res) => {
     return errorResponse(res, 500, 'Server error', { message: err.message });
   }
 };
+

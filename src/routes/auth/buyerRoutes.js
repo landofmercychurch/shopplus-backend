@@ -1,13 +1,14 @@
-// routes/auth/buyerRoutes.js
+import { supabase } from '../../config/db.js'; // add this at the top
+
 import express from 'express';
 import { authenticateJWT } from '../../middleware/authMiddleware.js';
 import { 
-  registerUser as registerBuyer,
-  loginUser as loginBuyer,
+  registerBuyer,
+  loginBuyer,
   getUserProfile,
   updateUserProfile,
-  refreshAccessToken,
-  logoutUser
+  logoutUser,
+  refreshAccessToken
 } from '../../controllers/buyer/authController.js';
 import { socialLoginBuyer } from '../../controllers/buyer/socialBuyerAuthController.js';
 
@@ -16,30 +17,35 @@ const router = express.Router();
 // ============================================================
 // BUYER AUTHENTICATION ROUTES
 // ============================================================
-
-// 1️⃣ Register a new buyer
-router.post('/register', (req, res) => registerBuyer(req, res, 'buyer'));
-
-// 2️⃣ Login buyer
-router.post('/login', (req, res) => loginBuyer(req, res, 'buyer'));
-
-// 3️⃣ Social login/signup (Gmail, Apple, Facebook)
+router.post('/register', registerBuyer);
+router.post('/login', loginBuyer);
 router.post('/social-login', socialLoginBuyer);
-
-// 4️⃣ Refresh access token
+router.post('/logout', authenticateJWT, logoutUser);
 router.post('/refresh', refreshAccessToken);
-
-// 5️⃣ Logout
-router.post('/logout', logoutUser);
 
 // ============================================================
 // USER PROFILE ROUTES (Protected)
 // ============================================================
+router.get('/me', authenticateJWT, async (req, res) => {
+  try {
+    const { data: profile, error } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('id', req.user.id)
+      .single();
 
-// 6️⃣ Get buyer profile
+    if (error || !profile) {
+      return res.status(404).json({ success: false, message: 'Profile not found', details: error });
+    }
+
+    res.json({ success: true, profile });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Failed to fetch profile', details: err.message });
+  }
+});
+
 router.get('/profile', authenticateJWT, getUserProfile);
-
-// 7️⃣ Update buyer profile
 router.put('/profile', authenticateJWT, updateUserProfile);
 
 export default router;
+

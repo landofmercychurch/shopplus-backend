@@ -1,3 +1,4 @@
+//src/routes/buyer/buyerMetadataRoutes.js
 import express from 'express';
 import { authenticateJWT } from '../../middleware/authMiddleware.js';
 import {

@@ -7,78 +7,113 @@ import {
   getCartCount as fetchCartCount
 } from '../models/cartModel.js';
 
-// Get all items in the user's cart
+// ---------------- HELPER: format cart items ----------------
+const formatCartItems = (items) => {
+  return items.map(item => ({
+    id: item.id,
+    product_id: item.product_id.id || item.product_id,
+    seller_id: item.product?.seller_id || null,
+    store_id: item.product?.store_id || null,
+    name: item.product?.name || '',
+    price: Number(item.product?.price || 0),
+    quantity: item.quantity,
+    subtotal: Number(item.product?.price || 0) * item.quantity
+  }));
+};
+
+// ---------------- GET ALL CART ITEMS ----------------
 export const getCart = async (req, res) => {
   try {
     const userId = req.user.id;
     const items = await getCartItems(userId);
 
-    // Format products if needed (flatten product object)
-    const formattedItems = items.map(item => ({
-      id: item.id,
-      product_id: item.product_id.id || item.product_id, // depends on how your join works
-      name: item.product?.name || '',
-      price: Number(item.product?.price || 0),
-      quantity: item.quantity,
-    }));
-
-    res.json(formattedItems || []);
+    res.json({ success: true, data: formatCartItems(items) });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Failed to fetch cart' });
+    res.status(500).json({ success: false, message: 'Failed to fetch cart', details: err.message });
   }
 };
 
-// Add a product to the cart (increment if exists)
+// ---------------- ADD ITEM TO CART ----------------
 export const addToCart = async (req, res) => {
   try {
     const userId = req.user.id;
     const { product_id, quantity = 1 } = req.body;
 
+    if (quantity <= 0) return res.status(400).json({ success: false, message: 'Quantity must be at least 1' });
+
     const item = await addCartItem(userId, product_id, quantity);
-    res.status(201).json(item);
+    res.status(201).json({ success: true, message: 'Item added to cart', data: item });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Failed to add to cart' });
+    res.status(500).json({ success: false, message: 'Failed to add to cart', details: err.message });
   }
 };
 
-// Update quantity of a cart item
+// ---------------- UPDATE CART ITEM ----------------
 export const updateCartItem = async (req, res) => {
   try {
     const { id } = req.params;
     const { quantity } = req.body;
 
+    if (quantity <= 0) return res.status(400).json({ success: false, message: 'Quantity must be at least 1' });
+
     const item = await updateCart(id, quantity);
-    res.json(item);
+    res.json({ success: true, message: 'Cart item updated', data: item });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Failed to update cart item' });
+    res.status(500).json({ success: false, message: 'Failed to update cart item', details: err.message });
   }
 };
 
-// Remove an item from the cart
+// ---------------- REMOVE CART ITEM ----------------
 export const removeCartItem = async (req, res) => {
   try {
     const { id } = req.params;
-
     await removeCart(id);
-    res.json({ message: 'Item removed from cart' });
+    res.json({ success: true, message: 'Item removed from cart' });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Failed to remove cart item' });
+    res.status(500).json({ success: false, message: 'Failed to remove cart item', details: err.message });
   }
 };
 
-// Get cart item count
+// ---------------- GET CART COUNT ----------------
 export const getCartCount = async (req, res) => {
   try {
     const userId = req.user.id;
     const count = await fetchCartCount(userId);
-    res.json({ count });
+    res.json({ success: true, data: { count } });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Failed to fetch cart count' });
+    res.status(500).json({ success: false, message: 'Failed to fetch cart count', details: err.message });
+  }
+};
+
+// ---------------- GET CART BY SELLER (OPTIONAL) ----------------
+export const getCartBySeller = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const items = await getCartItems(userId);
+    const sellerGroups = {};
+
+    items.forEach(item => {
+      const sellerId = item.product?.seller_id || 'unknown';
+      if (!sellerGroups[sellerId]) sellerGroups[sellerId] = [];
+      sellerGroups[sellerId].push({
+        id: item.id,
+        product_id: item.product_id.id || item.product_id,
+        name: item.product?.name || '',
+        price: Number(item.product?.price || 0),
+        quantity: item.quantity,
+        subtotal: Number(item.product?.price || 0) * item.quantity
+      });
+    });
+
+    res.json({ success: true, data: sellerGroups });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to fetch cart by seller', details: err.message });
   }
 };
 

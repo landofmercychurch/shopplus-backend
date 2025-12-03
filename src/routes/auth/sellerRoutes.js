@@ -1,6 +1,6 @@
-// routes/auth/sellerRoutes.js
+// routes/seller.js
 import express from 'express';
-import { authenticateJWT } from '../../middleware/authMiddleware.js';
+import { authenticateJWTWithCookie } from '../../middleware/authMiddleware.js';
 import { 
   registerSeller,
   loginSeller,
@@ -17,29 +17,33 @@ const router = express.Router();
 // SELLER AUTHENTICATION ROUTES
 // ============================================================
 
-// 1️⃣ Register a new seller
+// Register a new seller
 router.post('/register', registerSeller);
 
-// 2️⃣ Login seller
+// Login seller (sets HttpOnly cookies)
 router.post('/login', loginSeller);
 
-// 3️⃣ Social login/signup (Gmail, Apple, Facebook)
+// Social login (optional)
 router.post('/social-login', socialLoginSeller);
 
-// 4️⃣ Refresh access token
+// Refresh access token using seller refresh token
 router.post('/refresh', refreshAccessToken);
 
-// 5️⃣ Logout
-router.post('/logout', logoutUser);
+// Logout seller (clears cookies)
+router.post('/logout', authenticateJWTWithCookie('sellerAccessToken'), logoutUser);
 
 // ============================================================
 // USER PROFILE ROUTES (Protected)
 // ============================================================
 
-// 6️⃣ Get seller profile
-router.get('/profile', authenticateJWT, getUserProfile);
+// Get current logged-in seller info
+router.get('/me', authenticateJWTWithCookie('sellerAccessToken'), getUserProfile);
 
-// 7️⃣ Update seller profile
-router.put('/profile', authenticateJWT, updateUserProfile);
+// Get full seller profile
+router.get('/profile', authenticateJWTWithCookie('sellerAccessToken'), getUserProfile);
+
+// Update seller profile
+router.put('/profile', authenticateJWTWithCookie('sellerAccessToken'), updateUserProfile);
 
 export default router;
+

@@ -28,6 +28,8 @@
     "jsdom": "^27.2.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.2",
+    "openrouteservice": "^0.1.2",
+    "openrouteservice-js": "^0.4.1",
     "sharp": "^0.34.5",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",

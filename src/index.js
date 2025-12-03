@@ -2,7 +2,7 @@
 // 🚀 SHOPPLUS BACKEND SERVER WITH SOCKET.IO NAMESPACE
 // ============================================================
 
-import dotenv from "dotenv";
+import 'dotenv/config';
 import express from "express";
 import cors from "cors";
 import http from "http";
@@ -11,7 +11,7 @@ import helmet from "helmet";
 
 
 // Load environment variables
-dotenv.config();
+
 
 // ============================================================
 // ⚙️  CONFIGURATION
@@ -81,6 +81,7 @@ app.use(cookieParser());
 // ============================================================
 
 import buyerRoutes from "./routes/auth/buyerRoutes.js";
+import buyerMetadataRoutes from "./routes/buyer/buyerMetadataRoutes.js";
 import sellerRoutes from "./routes/auth/sellerRoutes.js";
 import sellerStoreRoutes from "./routes/seller/storeRoutes.js";
 import buyerStoreRoutes from "./routes/buyer/storeRoutes.js";
@@ -100,14 +101,22 @@ import followerRoutes from "./routes/followerRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
 import searchRoutes from "./routes/searchRoutes.js";
 import notificationsRoutes from "./routes/notificationsRoutes.js";
+import walletRoutes from './routes/walletRoutes.js';
+import Openrouteservice from "openrouteservice-js";
+
+import shippingRoutes from './routes/shippingRoutes.js';
+
+
 
 
 // ============================================================
 // 🧭 ROUTE 
 
-app.use("/api/buyer", buyerRoutes);
-app.use("/api/seller", sellerRoutes);
+app.use('/api/auth/seller', sellerRoutes);
+app.use('/api/auth/buyer', buyerRoutes);
+
 app.use("/api/buyer/stores", buyerStoreRoutes);
+app.use("/api/buyer/metadata", buyerMetadataRoutes);
 app.use("/api/seller/stores", sellerStoreRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/orders", orderRoutes);
@@ -125,6 +134,10 @@ app.use("/api/chats", chatRoutes);
 app.use("/api/search", searchRoutes);
 app.use("/api/notifications", notificationsRoutes);
 app.use("/api/uploads", uploadRoutes);
+app.use('/api/wallets', walletRoutes);
+app.use('/api/shipping', shippingRoutes);
+
+
 
 
 
