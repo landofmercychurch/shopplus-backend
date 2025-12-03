@@ -95,8 +95,8 @@ export const loginSeller = async (req, res) => {
     await supabase.from('user_profiles').update({ refresh_token: refreshToken }).eq('id', userId);
 
     // Set HttpOnly cookies with **seller-specific names**
-    res.cookie('sellerAccessToken', accessToken, { httpOnly: true, secure: false, sameSite: 'lax', maxAge: 10 * 60 * 1000 });
-    res.cookie('sellerRefreshToken', refreshToken, { httpOnly: true, secure: false, sameSite: 'lax', maxAge: REFRESH_EXPIRES_IN });
+    res.cookie('sellerAccessToken', accessToken, { httpOnly: true, secure: true, sameSite: 'none', maxAge: 10 * 60 * 1000 });
+    res.cookie('sellerRefreshToken', refreshToken, { httpOnly: true, secure: true, sameSite: 'none', maxAge: REFRESH_EXPIRES_IN });
 
     return res.status(200).json({
       success: true,
@@ -165,7 +165,7 @@ export const refreshAccessToken = async (req, res) => {
 
     const newAccessToken = jwt.sign({ id: profile.id, email: profile.email, role: profile.role }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 
-    res.cookie('sellerAccessToken', newAccessToken, { httpOnly: true, secure: false, sameSite: 'lax', maxAge: 10 * 60 * 1000 });
+    res.cookie('sellerAccessToken', newAccessToken, { httpOnly: true, secure: true, sameSite: 'none', maxAge: 10 * 60 * 1000 });
 
     res.status(200).json({ success: true, message: 'Access token refreshed', user: profile });
   } catch (err) {
@@ -182,8 +182,8 @@ export const logoutUser = async (req, res) => {
       await supabase.from('user_profiles').update({ refresh_token: null }).eq('id', userId);
     }
 
-    res.clearCookie('sellerAccessToken', { httpOnly: true, secure: false, sameSite: 'lax' });
-    res.clearCookie('sellerRefreshToken', { httpOnly: true, secure: false, sameSite: 'lax' });
+    res.clearCookie('sellerAccessToken', { httpOnly: true, secure: true, sameSite: 'none' });
+    res.clearCookie('sellerRefreshToken', { httpOnly: true, secure: true, sameSite: 'none' });
 
     res.status(200).json({ success: true, message: 'Logged out successfully' });
   } catch (err) {
