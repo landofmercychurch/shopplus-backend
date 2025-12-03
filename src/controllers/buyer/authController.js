@@ -95,15 +95,15 @@ export const loginBuyer = async (req, res) => {
     // Set HttpOnly cookies
     res.cookie('accessToken', accessToken, {
       httpOnly: true,
-      secure: false,
-      sameSite: 'lax',
+      secure: true,
+      sameSite: 'none',
       maxAge: 10 * 60 * 1000, // access token expires in 10 min
     });
 
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
-      secure: false,
-      sameSite: 'lax',
+      secure: true,
+      sameSite: 'none',
       maxAge: REFRESH_EXPIRES_IN, // 30 days
     });
 
@@ -182,8 +182,8 @@ export const refreshAccessToken = async (req, res) => {
     // Set HTTP-only access token cookie
     res.cookie('accessToken', newAccessToken, {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: 'lax',
+      secure: true,
+      sameSite: 'none',
       maxAge: 10 * 60 * 1000, // 10 minutes
     });
 
