@@ -9,9 +9,7 @@ import http from "http";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
 
-
 // Load environment variables
-
 
 // ============================================================
 // ⚙️  CONFIGURATION
@@ -21,42 +19,73 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // ============================================================
-// 🧩 CORS MIDDLEWARE
+// 🧩 CRITICAL: TRUST PROXY (Render requires this for cookies)
+// ============================================================
+app.set("trust proxy", 1);
+
+// ============================================================
+// 🧩 CORS MIDDLEWARE - UPDATED FOR RENDER COOKIES
 // ============================================================
 
+// Get allowed origin from env or use Render frontend
 const allowedOrigin = process.env.CLIENT_URL || "https://shopplus-frontend-uj8c.onrender.com";
 
+console.log('🔧 CORS Configuration:', {
+  allowedOrigin,
+  nodeEnv: process.env.NODE_ENV,
+  isProduction: process.env.NODE_ENV === 'production'
+});
+
+// CRITICAL FIX: For Render, we need to handle all subdomains
 const corsOptions = {
-  origin: allowedOrigin,
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // List of allowed origins
+    const allowedOrigins = [
+      allowedOrigin,
+      "https://shopplus-frontend-uj8c.onrender.com",
+      "https://landofmercychurch.github.io",
+      "https://landofmercychurch.github.io/shopplus-frontend",
+      "http://localhost:5173", // For local development
+      "http://localhost:3000"
+    ];
+    
+    // Check if the origin is in the allowed list
+    if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.warn(`⚠️ Blocked by CORS: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true, // MUST BE TRUE FOR COOKIES
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-  credentials: true,
+  allowedHeaders: ["Content-Type", "Authorization", "Accept"],
+  exposedHeaders: ["set-cookie"], // IMPORTANT: Expose set-cookie header
+  optionsSuccessStatus: 200
 };
 
 app.use(cors(corsOptions));
 
-// Fix preflight handling (Express 5 compatible)
-app.use((req, res, next) => {
-  if (req.method === "OPTIONS") {
-    res.header("Access-Control-Allow-Origin", allowedOrigin);
-    res.header("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
-    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
-    res.header("Access-Control-Allow-Credentials", "true");
-    return res.sendStatus(204);
-  }
-  next();
-});
+// ============================================================
+// 🧩 CRITICAL COOKIE PARSER MIDDLEWARE
+// ============================================================
+app.use(cookieParser());
 
-// // ============================================================
+// ============================================================
 // 🧩 SECURITY HEADERS
 // ============================================================
 
 // Allow ALL your frontend deployments
 const frontends = [
-  allowedOrigin, // https://shopplus-frontend-uj8c.onrender.com (your env default)
+  allowedOrigin,
   "https://shopplus-frontend-uj8c.onrender.com",
   "https://landofmercychurch.github.io",
-  "https://landofmercychurch.github.io/shopplus-frontend"
+  "https://landofmercychurch.github.io/shopplus-frontend",
+  "http://localhost:5173",
+  "http://localhost:3000"
 ];
 
 app.use(
@@ -77,18 +106,11 @@ app.use(
 );
 
 // ============================================================
-// 🧩 CRITICAL: TRUST PROXY (Render requires this for cookies)
-// ============================================================
-
-app.set("trust proxy", 1);
-
-// ============================================================
 // 🧩 BODY PARSERS
 // ============================================================
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser());
 
 // ============================================================
 // 🔗 ROUTE IMPORTS
@@ -117,18 +139,14 @@ import searchRoutes from "./routes/searchRoutes.js";
 import notificationsRoutes from "./routes/notificationsRoutes.js";
 import walletRoutes from './routes/walletRoutes.js';
 import Openrouteservice from "openrouteservice-js";
-
 import shippingRoutes from './routes/shippingRoutes.js';
 
-
-
-
 // ============================================================
-// 🧭 ROUTE 
+// 🧭 ROUTE MOUNTING
+// ============================================================
 
 app.use('/api/auth/seller', sellerRoutes);
 app.use('/api/auth/buyer', buyerRoutes);
-
 app.use("/api/buyer/stores", buyerStoreRoutes);
 app.use("/api/buyer/metadata", buyerMetadataRoutes);
 app.use("/api/seller/stores", sellerStoreRoutes);
@@ -151,9 +169,81 @@ app.use("/api/uploads", uploadRoutes);
 app.use('/api/wallets', walletRoutes);
 app.use('/api/shipping', shippingRoutes);
 
+// ============================================================
+// 🧪 DEBUG ENDPOINTS FOR COOKIE TESTING
+// ============================================================
 
+app.get("/api/debug/cookies", (req, res) => {
+  console.log('🔍 Debug Cookies - Headers:', req.headers);
+  console.log('🔍 Debug Cookies - Cookies received:', req.cookies);
+  console.log('🔍 Debug Cookies - Origin:', req.headers.origin);
+  
+  res.json({
+    success: true,
+    timestamp: new Date().toISOString(),
+    cookies: req.cookies,
+    headers: {
+      origin: req.headers.origin,
+      cookie: req.headers.cookie,
+      'user-agent': req.headers['user-agent']
+    },
+    serverInfo: {
+      nodeEnv: process.env.NODE_ENV,
+      isProduction: process.env.NODE_ENV === 'production',
+      trustProxy: app.get("trust proxy")
+    }
+  });
+});
 
+app.get("/api/debug/cors", (req, res) => {
+  res.json({
+    success: true,
+    corsConfigured: true,
+    allowedOrigin: allowedOrigin,
+    credentials: true,
+    timestamp: new Date().toISOString()
+  });
+});
 
+// Test endpoint to set cookies
+app.get("/api/debug/set-test-cookie", (req, res) => {
+  // CRITICAL: Cookie settings for Render
+  const isProduction = process.env.NODE_ENV === 'production';
+  
+  res.cookie('test_access_token', 'test_jwt_token_123', {
+    httpOnly: true,
+    secure: isProduction, // TRUE on Render (HTTPS)
+    sameSite: 'none', // REQUIRED for cross-site cookies
+    maxAge: 15 * 60 * 1000, // 15 minutes
+    path: '/'
+    // Note: Don't set domain on Render subdomains
+  });
+  
+  res.cookie('test_refresh_token', 'test_refresh_token_456', {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: 'none',
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    path: '/'
+  });
+  
+  console.log('🍪 Test cookies set with options:', {
+    secure: isProduction,
+    sameSite: 'none',
+    httpOnly: true
+  });
+  
+  res.json({
+    success: true,
+    message: 'Test cookies set',
+    cookiesSet: ['test_access_token', 'test_refresh_token'],
+    cookieOptions: {
+      secure: isProduction,
+      sameSite: 'none',
+      httpOnly: true
+    }
+  });
+});
 
 // ============================================================
 // 🧪 HEALTH CHECK
@@ -163,6 +253,14 @@ app.get("/", (req, res) => {
   res.json({
     message: "✅ ShopPlus backend running smoothly 🚀",
     environment: process.env.NODE_ENV || "development",
+    cors: {
+      allowedOrigin,
+      credentials: true
+    },
+    cookies: {
+      testEndpoint: "/api/debug/set-test-cookie",
+      debugEndpoint: "/api/debug/cookies"
+    }
   });
 });
 
@@ -171,6 +269,7 @@ app.use((req, res) => {
   res.status(404).json({
     error: "Route not found",
     path: req.originalUrl,
+    method: req.method
   });
 });
 
@@ -184,10 +283,25 @@ import { initChatSocket } from "./sockets/chatSocket.js";
 
 const io = new Server(server, {
   cors: {
-    origin: allowedOrigin,
-    methods: ["GET", "POST"],
-    credentials: true,
-  },
+    origin: function (origin, callback) {
+      // Same CORS logic as above
+      const allowedOrigins = [
+        allowedOrigin,
+        "https://shopplus-frontend-uj8c.onrender.com",
+        "https://landofmercychurch.github.io",
+        "https://landofmercychurch.github.io/shopplus-frontend",
+        "http://localhost:5173",
+        "http://localhost:3000"
+      ];
+      
+      if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    credentials: true
+  }
 });
 
 // ============================================================
@@ -206,5 +320,10 @@ app.set("io", chatNamespace);
 
 server.listen(PORT, () => {
   console.log(`✅ ShopPlus server running at: http://localhost:${PORT}`);
+  console.log(`🔧 CORS configured for: ${allowedOrigin}`);
+  console.log(`🔐 Cookie settings: secure=${process.env.NODE_ENV === 'production'}, sameSite=none`);
+  console.log(`🧪 Debug endpoints:`);
+  console.log(`   - GET /api/debug/cookies - Check received cookies`);
+  console.log(`   - GET /api/debug/set-test-cookie - Set test cookies`);
   console.log(`🟢 Socket.IO chat namespace ready at /chat`);
 });
