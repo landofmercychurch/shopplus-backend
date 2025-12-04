@@ -1,6 +1,6 @@
-// routes/seller.js
 import express from 'express';
 import { authenticateJWTWithCookie } from '../../middleware/authMiddleware.js';
+import { verifyCSRF, verifyCSRFForAuth } from '../../middleware/csrf.js'; // ⭐ ADD THIS
 import { 
   registerSeller,
   loginSeller,
@@ -16,34 +16,31 @@ const router = express.Router();
 // ============================================================
 // SELLER AUTHENTICATION ROUTES
 // ============================================================
-
-// Register a new seller
-router.post('/register', registerSeller);
-
-// Login seller (sets HttpOnly cookies)
-router.post('/login', loginSeller);
-
-// Social login (optional)
-router.post('/social-login', socialLoginSeller);
-
-// Refresh access token using seller refresh token
-router.post('/refresh', refreshAccessToken);
-
-// Logout seller (clears cookies)
-router.post('/logout', authenticateJWTWithCookie('sellerAccessToken'), logoutUser);
+// ⭐ ADD CSRF VERIFICATION
+router.post('/register', verifyCSRFForAuth, registerSeller);
+router.post('/login', verifyCSRFForAuth, loginSeller);
+router.post('/social-login', verifyCSRFForAuth, socialLoginSeller);
+router.post('/refresh', verifyCSRF, refreshAccessToken);
+router.post('/logout', authenticateJWTWithCookie('sellerAccessToken'), verifyCSRF, logoutUser);
 
 // ============================================================
 // USER PROFILE ROUTES (Protected)
 // ============================================================
-
-// Get current logged-in seller info
+// ⭐ GET routes don't need CSRF
 router.get('/me', authenticateJWTWithCookie('sellerAccessToken'), getUserProfile);
-
-// Get full seller profile
 router.get('/profile', authenticateJWTWithCookie('sellerAccessToken'), getUserProfile);
 
-// Update seller profile
-router.put('/profile', authenticateJWTWithCookie('sellerAccessToken'), updateUserProfile);
+// ⭐ PUT route needs CSRF
+router.put('/profile', authenticateJWTWithCookie('sellerAccessToken'), verifyCSRF, updateUserProfile);
+
+// ⭐ ADD CSRF token endpoint for seller
+router.get('/csrf-token', (req, res) => {
+  const token = req.cookies['X-CSRF-TOKEN'] || 'not-set';
+  res.json({
+    success: true,
+    csrfToken: token,
+    timestamp: new Date().toISOString()
+  });
+});
 
 export default router;
-
