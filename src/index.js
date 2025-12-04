@@ -72,6 +72,28 @@ app.use(cors(corsOptions));
 // ============================================================
 app.use(cookieParser());
 
+
+
+
+
+
+
+// ============================================================
+// 🛡️ CSRF PROTECTION MIDDLEWARE
+// ============================================================
+import { csrfTokenMiddleware, getCSRFToken } from './middleware/csrf.js';
+
+// Apply CSRF token middleware (sets X-CSRF-TOKEN cookie)
+app.use(csrfTokenMiddleware);
+
+// Add CSRF token endpoint
+app.get('/api/csrf-token', getCSRFToken);
+
+
+
+
+
+
 // ============================================================
 // 🧩 SECURITY HEADERS
 // ============================================================
