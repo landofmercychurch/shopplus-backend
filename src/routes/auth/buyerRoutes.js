@@ -1,7 +1,7 @@
-import { supabase } from '../../config/db.js'; // add this at the top
-
+import { supabase } from '../../config/db.js';
 import express from 'express';
 import { authenticateJWT } from '../../middleware/authMiddleware.js';
+import { verifyCSRF, verifyCSRFForAuth } from '../../middleware/csrf.js'; // ⭐ ADD THIS
 import { 
   registerBuyer,
   loginBuyer,
@@ -17,15 +17,17 @@ const router = express.Router();
 // ============================================================
 // BUYER AUTHENTICATION ROUTES
 // ============================================================
-router.post('/register', registerBuyer);
-router.post('/login', loginBuyer);
-router.post('/social-login', socialLoginBuyer);
-router.post('/logout', authenticateJWT, logoutUser);
-router.post('/refresh', refreshAccessToken);
+// ⭐ ADD CSRF VERIFICATION to state-changing routes
+router.post('/register', verifyCSRFForAuth, registerBuyer);
+router.post('/login', verifyCSRFForAuth, loginBuyer);
+router.post('/social-login', verifyCSRFForAuth, socialLoginBuyer);
+router.post('/logout', authenticateJWT, verifyCSRF, logoutUser); // ⭐ ADD verifyCSRF
+router.post('/refresh', verifyCSRF, refreshAccessToken); // ⭐ ADD verifyCSRF
 
 // ============================================================
 // USER PROFILE ROUTES (Protected)
 // ============================================================
+// ⭐ GET routes typically don't need CSRF
 router.get('/me', authenticateJWT, async (req, res) => {
   try {
     const { data: profile, error } = await supabase
@@ -44,8 +46,18 @@ router.get('/me', authenticateJWT, async (req, res) => {
   }
 });
 
+// ⭐ PUT route needs CSRF
 router.get('/profile', authenticateJWT, getUserProfile);
-router.put('/profile', authenticateJWT, updateUserProfile);
+router.put('/profile', authenticateJWT, verifyCSRF, updateUserProfile); // ⭐ ADD verifyCSRF
+
+// ⭐ ADD CSRF token endpoint specific to buyer
+router.get('/csrf-token', (req, res) => {
+  const token = req.cookies['X-CSRF-TOKEN'] || 'not-set';
+  res.json({
+    success: true,
+    csrfToken: token,
+    timestamp: new Date().toISOString()
+  });
+});
 
 export default router;
-
