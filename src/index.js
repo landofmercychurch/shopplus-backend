@@ -9,8 +9,6 @@ import http from "http";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
 
-// Load environment variables
-
 // ============================================================
 // ⚙️  CONFIGURATION
 // ============================================================
@@ -142,34 +140,6 @@ import Openrouteservice from "openrouteservice-js";
 import shippingRoutes from './routes/shippingRoutes.js';
 
 // ============================================================
-// 🧭 ROUTE MOUNTING
-// ============================================================
-
-app.use('/api/auth/seller', sellerRoutes);
-app.use('/api/auth/buyer', buyerRoutes);
-app.use("/api/buyer/stores", buyerStoreRoutes);
-app.use("/api/buyer/metadata", buyerMetadataRoutes);
-app.use("/api/seller/stores", sellerStoreRoutes);
-app.use("/api/products", productRoutes);
-app.use("/api/orders", orderRoutes);
-app.use("/api/tracking", trackingRoutes);
-app.use("/api/categories", categoryRoutes);
-app.use("/api/campaigns", campaignRoutes);
-app.use("/api/cart", cartRoutes);
-app.use("/api/favourites", favouritesRoutes);
-app.use("/api/order-items", orderItemsRoutes);
-app.use("/api/payments", paymentsRoutes);
-app.use("/api/reviews", reviewsRoutes);
-app.use("/api/shipments", shipmentsRoutes);
-app.use("/api/followers", followerRoutes);
-app.use("/api/chats", chatRoutes);
-app.use("/api/search", searchRoutes);
-app.use("/api/notifications", notificationsRoutes);
-app.use("/api/uploads", uploadRoutes);
-app.use('/api/wallets', walletRoutes);
-app.use('/api/shipping', shippingRoutes);
-
-// ============================================================
 // 🧪 DEBUG ENDPOINTS FOR COOKIE TESTING
 // ============================================================
 
@@ -209,41 +179,66 @@ app.get("/api/debug/cors", (req, res) => {
 app.get("/api/debug/set-test-cookie", (req, res) => {
   // CRITICAL: Cookie settings for Render
   const isProduction = process.env.NODE_ENV === 'production';
+  const origin = req.headers.origin || '';
+  const isRenderDomain = origin.includes('.onrender.com');
   
-  res.cookie('test_access_token', 'test_jwt_token_123', {
+  const cookieOptions = {
     httpOnly: true,
     secure: isProduction, // TRUE on Render (HTTPS)
     sameSite: 'none', // REQUIRED for cross-site cookies
     maxAge: 15 * 60 * 1000, // 15 minutes
     path: '/'
-    // Note: Don't set domain on Render subdomains
-  });
+  };
+  
+  // Add domain for Render subdomains
+  if (isRenderDomain) {
+    cookieOptions.domain = '.onrender.com';
+  }
+  
+  res.cookie('test_access_token', 'test_jwt_token_123', cookieOptions);
   
   res.cookie('test_refresh_token', 'test_refresh_token_456', {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: 'none',
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    path: '/'
+    ...cookieOptions,
+    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
   });
   
-  console.log('🍪 Test cookies set with options:', {
-    secure: isProduction,
-    sameSite: 'none',
-    httpOnly: true
-  });
+  console.log('🍪 Test cookies set with options:', cookieOptions);
   
   res.json({
     success: true,
     message: 'Test cookies set',
     cookiesSet: ['test_access_token', 'test_refresh_token'],
-    cookieOptions: {
-      secure: isProduction,
-      sameSite: 'none',
-      httpOnly: true
-    }
+    cookieOptions: cookieOptions
   });
 });
+
+// ============================================================
+// 🧭 ROUTE MOUNTING
+// ============================================================
+
+app.use('/api/auth/seller', sellerRoutes);
+app.use('/api/auth/buyer', buyerRoutes);
+app.use("/api/buyer/stores", buyerStoreRoutes);
+app.use("/api/buyer/metadata", buyerMetadataRoutes);
+app.use("/api/seller/stores", sellerStoreRoutes);
+app.use("/api/products", productRoutes);
+app.use("/api/orders", orderRoutes);
+app.use("/api/tracking", trackingRoutes);
+app.use("/api/categories", categoryRoutes);
+app.use("/api/campaigns", campaignRoutes);
+app.use("/api/cart", cartRoutes);
+app.use("/api/favourites", favouritesRoutes);
+app.use("/api/order-items", orderItemsRoutes);
+app.use("/api/payments", paymentsRoutes);
+app.use("/api/reviews", reviewsRoutes);
+app.use("/api/shipments", shipmentsRoutes);
+app.use("/api/followers", followerRoutes);
+app.use("/api/chats", chatRoutes);
+app.use("/api/search", searchRoutes);
+app.use("/api/notifications", notificationsRoutes);
+app.use("/api/uploads", uploadRoutes);
+app.use('/api/wallets', walletRoutes);
+app.use('/api/shipping', shippingRoutes);
 
 // ============================================================
 // 🧪 HEALTH CHECK
@@ -260,7 +255,8 @@ app.get("/", (req, res) => {
     cookies: {
       testEndpoint: "/api/debug/set-test-cookie",
       debugEndpoint: "/api/debug/cookies"
-    }
+    },
+    timestamp: new Date().toISOString()
   });
 });
 
@@ -269,7 +265,8 @@ app.use((req, res) => {
   res.status(404).json({
     error: "Route not found",
     path: req.originalUrl,
-    method: req.method
+    method: req.method,
+    timestamp: new Date().toISOString()
   });
 });
 
@@ -325,5 +322,6 @@ server.listen(PORT, () => {
   console.log(`🧪 Debug endpoints:`);
   console.log(`   - GET /api/debug/cookies - Check received cookies`);
   console.log(`   - GET /api/debug/set-test-cookie - Set test cookies`);
+  console.log(`   - GET /api/debug/cors - Check CORS configuration`);
   console.log(`🟢 Socket.IO chat namespace ready at /chat`);
 });
